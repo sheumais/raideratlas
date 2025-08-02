@@ -14,7 +14,7 @@ const CODE_SETTINGS: &str = "code_settings.txt";
 const CODES_FILE: &str = "sorted_report_codes.txt";
 const REPORTS_OUT: &str = "report_details.json";
 const PLAYER_TABLE: &str = "player_table.csv";
-const CHECKPOINT_INTERVAL: usize = 25; 
+const CHECKPOINT_INTERVAL: usize = 100; 
 
 fn read_last_index<P: AsRef<Path>>(path: P) -> io::Result<usize> {
     if let Ok(file) = File::open(path) {
@@ -118,7 +118,7 @@ fn fetch_report_data(
         }
 
         attempts += 1;
-        if attempts > 5 {
+        if attempts > 100 {
             return Err(format!("Failed after 5 attempts: {}", res.status()).into());
         }
 

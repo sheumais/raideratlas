@@ -1,0 +1,17 @@
+@font-face {
+  font-family: 'Univers';
+  src: url('static/font/univers67.woff2') format('woff2'),
+       url('static/font/univers67.woff') format('woff'),
+       url('static/font/univers67.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Univers';
+  src: url('static/font/univers57.woff2') format('woff2'),
+       url('static/font/univers57.woff') format('woff'),
+       url('static/font/univers57.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}

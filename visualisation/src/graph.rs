@@ -177,7 +177,8 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
     }
 
     let graph_rc = use_memo((), |_| {
-        let raw = include_str!("graph.json");
+        let raw: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph.json"));
+        web_sys::console::log_1(&format!("CARGO_MANIFEST_DIR + static/graph: {}", concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph.json")).into());
         serde_json::from_str::<Graph>(raw)
             .expect("graph.json should parse to a Graph")
     });

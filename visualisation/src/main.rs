@@ -1,5 +1,7 @@
+use stylist::css;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use yew::{function_component, html, use_effect_with, use_state, Html};
+use yew_icons::{Icon, IconId};
 
 use crate::graph::CanvasGraph;
 
@@ -49,10 +51,33 @@ fn app() -> Html {
         });
     }
 
+    let logo_style = css!(r#"
+        width: 2em;
+        height: 2em;
+        color: #fff;
+        cursor: pointer;
+    "#);
+
     html! {
-        <div style="width:100vw; height:100vh; margin:0; padding:0; overflow: hidden;">
-            <CanvasGraph width={*window_width as u32} height={*window_height as u32} />
-        </div>
+        <>
+            <div style="width:100vw; height:100vh; margin:0; padding:0; overflow: hidden;">
+                <CanvasGraph width={*window_width as u32} height={*window_height as u32} />
+            </div>
+            <div style="position: fixed; bottom: 1em; right: 1em; display: flex; gap: 1em; z-index: 2;">
+                <a
+                    href={"https://discord.gg/FjJjXHjUQ4"}
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    <Icon icon_id={IconId::BootstrapDiscord} class={logo_style.clone()} />
+                </a>
+                <a
+                    href={"https://github.com/sheumais/raideratlas"}
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    <Icon icon_id={IconId::BootstrapGithub} class={logo_style.clone()} />
+                </a>
+            </div>
+        </>
     }
 }
 

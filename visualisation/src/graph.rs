@@ -49,7 +49,7 @@ pub struct CanvasGraphProps {
 
 pub fn at_name_icon() -> Html {
     html! {
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 52 52"><path fill="#fff" fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 52 52"><path fill="#fff" fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
     }
 }
 
@@ -507,6 +507,12 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 }
             }) as Box<dyn FnMut(_)>);
 
+            let offset_x_wheel = offset_x.clone();
+            let offset_y_wheel = offset_y.clone();
+            let offset_x_ref_wheel = offset_x_ref.clone();
+            let offset_y_ref_wheel = offset_y_ref.clone();
+            let scale_wheel = scale.clone();
+            let scale_ref_wheel = scale_ref.clone();
             let on_wheel = Closure::wrap(Box::new(move |e: WheelEvent| {
                 e.prevent_default();
 
@@ -526,26 +532,28 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 let max_scale = 10.0;
                 new_scale = new_scale.clamp(min_scale, max_scale);
 
-                let dx = mouse_x - (canvas_cloned.width() as f64 / 2.0 + *offset_x_ref.borrow());
-                let dy = mouse_y - (canvas_cloned.height() as f64 / 2.0 + *offset_y_ref.borrow());
+                let dx = mouse_x - (canvas_cloned.width() as f64 / 2.0 + *offset_x_ref_wheel.borrow());
+                let dy = mouse_y - (canvas_cloned.height() as f64 / 2.0 + *offset_y_ref_wheel.borrow());
 
-                *offset_x_ref.borrow_mut() -= dx * (new_scale / old_scale - 1.0);
-                *offset_y_ref.borrow_mut() -= dy * (new_scale / old_scale - 1.0);
-                *scale_ref.borrow_mut() = new_scale;
+                *offset_x_ref_wheel.borrow_mut() -= dx * (new_scale / old_scale - 1.0);
+                *offset_y_ref_wheel.borrow_mut() -= dy * (new_scale / old_scale - 1.0);
+                *scale_ref_wheel.borrow_mut() = new_scale;
 
-                offset_x.set(*offset_x_ref.borrow());
-                offset_y.set(*offset_y_ref.borrow());
-                scale.set(*scale_ref.borrow());
+                offset_x_wheel.set(*offset_x_ref_wheel.borrow());
+                offset_y_wheel.set(*offset_y_ref_wheel.borrow());
+                scale_wheel.set(*scale_ref_wheel.borrow());
             }) as Box<dyn FnMut(_)>);
 
             let graph = graph_rc.clone();
+            let sel_state_click = sel_state.clone();
+            let canvas_on_click = canvas.clone();
             let on_click = Closure::wrap(Box::new(move |e: MouseEvent| {
                 if *did_move_click.borrow() {return;}
-                let rect = canvas_cloned2.get_bounding_client_rect();
+                let rect = canvas_on_click.get_bounding_client_rect();
                 let sx = e.client_x() as f64 - rect.left();
                 let sy = e.client_y() as f64 - rect.top();
 
-                let ctx = canvas_cloned2
+                let ctx = canvas_on_click
                     .get_context("2d")
                     .unwrap()
                     .unwrap()
@@ -570,7 +578,90 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                         break;
                     }
                 }
-                sel_state.set(found);
+                sel_state_click.set(found);
+            }) as Box<dyn FnMut(_)>);
+
+            let is_dragging_touch_start = is_dragging.clone();
+            let last_mouse_touch_start = last_mouse.clone();
+            let did_move_touch_start = did_move.clone();
+            let on_touch_start = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+                e.prevent_default();
+                if let Some(t) = e.touches().get(0) {
+                    *is_dragging_touch_start.borrow_mut() = true;
+                    *did_move_touch_start.borrow_mut() = false;
+                    *last_mouse_touch_start.borrow_mut() = (
+                        t.client_x() as f64,
+                        t.client_y() as f64,
+                    );
+                }
+            }) as Box<dyn FnMut(_)>);
+
+            let is_dragging_touch_move = is_dragging.clone();
+            let last_mouse_touch_move = last_mouse.clone();
+            let offset_x_touch = offset_x.clone();
+            let offset_y_touch = offset_y.clone();
+            let offset_x_ref_touch = offset_x_ref.clone();
+            let offset_y_ref_touch = offset_y_ref.clone();
+            let did_move_touch_move = did_move.clone();
+            let on_touch_move = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+                e.prevent_default();
+                if *is_dragging_touch_move.borrow() {
+                    if let Some(t) = e.touches().get(0) {
+                        *did_move_touch_move.borrow_mut() = true;
+                        let (lx, ly) = *last_mouse_touch_move.borrow();
+                        let (cx, cy) = (t.client_x() as f64, t.client_y() as f64);
+                        let dx = cx - lx;
+                        let dy = cy - ly;
+
+                        *offset_x_ref_touch.borrow_mut() += dx;
+                        *offset_y_ref_touch.borrow_mut() += dy;
+                        offset_x_touch.set(*offset_x_ref_touch.borrow());
+                        offset_y_touch.set(*offset_y_ref_touch.borrow());
+                        *last_mouse_touch_move.borrow_mut() = (cx, cy);
+                    }
+                }
+            }) as Box<dyn FnMut(_)>);
+
+            let is_dragging_touch_end = is_dragging.clone();
+            let did_move_touch_end = did_move.clone();
+            let sel_state_touch = sel_state.clone();
+            let canvas_for_tap = canvas_cloned2.clone();
+            let graph_for_tap = graph_rc.clone();
+            let on_touch_end = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+                e.prevent_default();
+                *is_dragging_touch_end.borrow_mut() = false;
+                if !*did_move_touch_end.borrow() {
+                    if let Some(t) = e.changed_touches().get(0) {
+                        let rect = canvas_for_tap.get_bounding_client_rect();
+                        let sx = t.client_x() as f64 - rect.left();
+                        let sy = t.client_y() as f64 - rect.top();
+
+                        let ctx = canvas_for_tap
+                            .get_context("2d")
+                            .unwrap()
+                            .unwrap()
+                            .dyn_into::<CanvasRenderingContext2d>()
+                            .unwrap();
+
+                        let inv = ctx.get_transform().unwrap().inverse();
+                        let graph_x = inv.a() * sx + inv.c() * sy + inv.e();
+                        let graph_y = inv.b() * sx + inv.d() * sy + inv.f();
+
+                        let mut found = None;
+                        for (idx, node) in graph_for_tap.nodes.iter().enumerate() {
+                            let nx = node.attributes.x / 10.0;
+                            let ny = -node.attributes.y / 10.0;
+                            let r  = (node.attributes.size as f64).log2() / 2.0;
+                            let dx = graph_x - nx;
+                            let dy = graph_y - ny;
+                            if dx*dx + dy*dy <= r*r {
+                                found = Some(idx);
+                                break;
+                            }
+                        }
+                        sel_state_touch.set(found);
+                    }
+                }
             }) as Box<dyn FnMut(_)>);
 
             canvas.add_event_listener_with_callback("mousedown", on_mouse_down.as_ref().unchecked_ref()).unwrap();
@@ -579,11 +670,20 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             canvas.add_event_listener_with_callback("wheel", on_wheel.as_ref().unchecked_ref()).unwrap();
             canvas.add_event_listener_with_callback("click", on_click.as_ref().unchecked_ref()).unwrap();
 
+            canvas.add_event_listener_with_callback("touchstart", on_touch_start.as_ref().unchecked_ref()).unwrap();
+            canvas.add_event_listener_with_callback("touchmove",  on_touch_move.as_ref().unchecked_ref()).unwrap();
+            canvas.add_event_listener_with_callback("touchend",   on_touch_end.as_ref().unchecked_ref()).unwrap();
+
+
             on_mouse_down.forget();
             on_mouse_up.forget();
             on_mouse_move.forget();
             on_wheel.forget();
             on_click.forget();
+
+            on_touch_start.forget();
+            on_touch_move.forget();
+            on_touch_end.forget();
 
             || ()
         });
@@ -592,26 +692,56 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
     let zoom_in = {
         let scale = scale.clone();
         let scale_ref = scale_ref.clone();
+        let offset_x = offset_x.clone();
+        let offset_y = offset_y.clone();
+        let offset_x_ref = offset_x_ref.clone();
+        let offset_y_ref = offset_y_ref.clone();
         Callback::from(move |_| {
             let old_scale = *scale_ref.borrow();
             let factor = 1.1;
-            let mut new_scale = old_scale * factor;
-            new_scale = new_scale.clamp(0.8, 10.0);
+            let new_scale = (old_scale * factor).clamp(0.8, 10.0);
+
+            let cx = (width as f64) / 2.0;
+            let cy = (height as f64) / 2.0;
+
+            let dx = cx - ((width as f64)/2.0 + *offset_x_ref.borrow());
+            let dy = cy - ((height as f64)/2.0 + *offset_y_ref.borrow());
+
+            *offset_x_ref.borrow_mut() -= dx * (new_scale/old_scale - 1.0);
+            *offset_y_ref.borrow_mut() -= dy * (new_scale/old_scale - 1.0);
+
             *scale_ref.borrow_mut() = new_scale;
             scale.set(new_scale);
+            offset_x.set(*offset_x_ref.borrow());
+            offset_y.set(*offset_y_ref.borrow());
         })
     };
 
     let zoom_out = {
         let scale = scale.clone();
         let scale_ref = scale_ref.clone();
+        let offset_x = offset_x.clone();
+        let offset_y = offset_y.clone();
+        let offset_x_ref = offset_x_ref.clone();
+        let offset_y_ref = offset_y_ref.clone();
         Callback::from(move |_| {
             let old_scale = *scale_ref.borrow();
             let factor = 1.1;
-            let mut new_scale = old_scale / factor;
-            new_scale = new_scale.clamp(0.8, 10.0);
+            let new_scale = (old_scale / factor).clamp(0.8, 10.0);
+
+            let cx = (width as f64) / 2.0;
+            let cy = (height as f64) / 2.0;
+
+            let dx = cx - ((width as f64)/2.0 + *offset_x_ref.borrow());
+            let dy = cy - ((height as f64)/2.0 + *offset_y_ref.borrow());
+
+            *offset_x_ref.borrow_mut() -= dx * (new_scale/old_scale - 1.0);
+            *offset_y_ref.borrow_mut() -= dy * (new_scale/old_scale - 1.0);
+
             *scale_ref.borrow_mut() = new_scale;
             scale.set(new_scale);
+            offset_x.set(*offset_x_ref.borrow());
+            offset_y.set(*offset_y_ref.borrow());
         })
     };
 

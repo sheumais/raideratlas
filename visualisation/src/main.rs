@@ -52,8 +52,8 @@ fn app() -> Html {
     }
 
     let logo_style = css!(r#"
-        width: 2em;
-        height: 2em;
+        width: 3em;
+        height: 3em;
         color: #fff;
         cursor: pointer;
     "#);

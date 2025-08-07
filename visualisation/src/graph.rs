@@ -1,9 +1,11 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use serde::Deserialize;
+use stylist::css;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
-use yew::{function_component, html, use_effect_with, use_memo, use_mut_ref, use_node_ref, use_state, Html, MouseEvent, Properties, UseStateHandle, WheelEvent};
+use yew::{function_component, html, use_effect_with, use_memo, use_mut_ref, use_node_ref, use_state, Callback, Html, InputEvent, MouseEvent, Properties, TargetCast, UseStateHandle, WheelEvent};
+use yew_icons::{Icon, IconId};
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Graph {
@@ -13,7 +15,7 @@ pub struct Graph {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Node {
-    pub key: String, // String -> u32
+    pub key: String,
     pub attributes: NodeAttributes,
 }
 
@@ -28,9 +30,9 @@ pub struct NodeAttributes {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Edge {
-    pub key: String, // String -> u32
-    pub source: String, // String -> u32
-    pub target: String, // String -> u32
+    pub key: String,
+    pub source: String,
+    pub target: String,
     pub attributes: EdgeAttributes,
 }
 
@@ -45,6 +47,12 @@ pub struct CanvasGraphProps {
     pub height: u32,
 }
 
+pub fn at_name_icon() -> Html {
+    html! {
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 52 52"><path fill="#fff" fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
+    }
+}
+
 fn draw_edges_in_batches(context: &CanvasRenderingContext2d, graph: Rc<Graph>, drawn_edges: Rc<RefCell<usize>>, scale: f64, selected: UseStateHandle<Option<usize>>, raf_handle: Rc<RefCell<Option<i32>>>, timeout_handle: Rc<RefCell<Option<i32>>>,) {
     let context = context.clone();
     let drawn_edges = drawn_edges.clone();
@@ -52,14 +60,14 @@ fn draw_edges_in_batches(context: &CanvasRenderingContext2d, graph: Rc<Graph>, d
     let raf_handle = raf_handle.clone();
     let timeout_handle = timeout_handle.clone();
 
-    let batch_size = 40;
+    let batch_size = 120;
     let total_edges = graph.edges.len();
 
     let closure: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     {
         let closure_inner = closure.clone();
         *closure_inner.borrow_mut() = Some(Closure::wrap(Box::new({
-            let closure = closure.clone(); // ✅ clone here
+            let closure = closure.clone();
             let drawn_edges = drawn_edges.clone();
             let selected_handle = selected_handle.clone();
             let raf_handle = raf_handle.clone();
@@ -88,7 +96,7 @@ fn draw_edges_in_batches(context: &CanvasRenderingContext2d, graph: Rc<Graph>, d
                         let r = (rgb >> 16) & 0xFF;
                         let g = (rgb >> 8) & 0xFF;
                         let b = rgb & 0xFF;
-                        context.set_stroke_style_str(&format!("rgba({}, {}, {}, {})", r, g, b, 0.1));
+                        context.set_stroke_style_str(&format!("rgba({}, {}, {}, {})", r, g, b, 0.07));
                     }
 
                     let dx = tx - sx;
@@ -151,11 +159,13 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
     let width = props.width;
     let height = props.height;
     
-    let scale = use_state(|| 0.6f64);
-    let offset_x = use_state(|| 0.0f64);
+    let scale = use_state(|| 0.8f64);
+    let offset_x = use_state(|| -200.0f64);
     let offset_y = use_state(|| 0.0f64);
 
     let selected_node = use_state(|| None::<usize>);
+    let search_open = use_state(|| false);
+    let search_query = use_state(|| String::new());
 
     let scale_ref = use_mut_ref(|| *scale);
     let offset_x_ref = use_mut_ref(|| *offset_x);
@@ -167,6 +177,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
     let drawn_edges = use_mut_ref(|| 0usize);
     let raf_handle = use_mut_ref(|| None::<i32>);
     let timeout_handle = use_mut_ref(|| None::<i32>);
+    
 
     {
         let drawn_edges = drawn_edges.clone();
@@ -178,11 +189,74 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
 
     let graph_rc = use_memo((), |_| {
         let raw: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph"));
-        web_sys::console::log_1(&format!("CARGO_MANIFEST_DIR + static/graph: {}", concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph")).into());
-        web_sys::console::log_1(&format!("Raw graph content: {}", raw).into());
+        // web_sys::console::log_1(&format!("CARGO_MANIFEST_DIR + static/graph: {}", concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph")).into());
+        // web_sys::console::log_1(&format!("Raw graph content: {}", raw).into());
         serde_json::from_str::<Graph>(raw)
             .expect("graph.json should parse to a Graph")
     });
+
+    
+    let graph = graph_rc.clone();
+    let matches = {
+        let query = (*search_query).to_lowercase();
+        if query.len() >= 3 {
+            graph.nodes.iter().enumerate()
+                .filter(|(_, node)| node.attributes.label.to_lowercase().contains(&query))
+                .map(|(i, node)| (i, node.attributes.label.clone()))
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        }
+    };
+
+    let toggle_search = {
+        let search_open = search_open.clone();
+        Callback::from(move |_| search_open.set(!*search_open))
+    };
+
+    let oninput_search = {
+        let search_query = search_query.clone();
+        Callback::from(move |e: InputEvent| {
+            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                search_query.set(input.value());
+            }
+        })
+    };
+
+    let on_select = {
+        let scale = scale.clone();
+        let scale_ref = scale_ref.clone();
+        let offset_x = offset_x.clone();
+        let offset_x_ref = offset_x_ref.clone();
+        let offset_y = offset_y.clone();
+        let offset_y_ref = offset_y_ref.clone();
+        let selected_node = selected_node.clone();
+        let search_open = search_open.clone();
+        let graph = graph.clone();
+        let search_query = search_query.clone();
+        let last_mouse_ref = last_mouse.clone();
+
+        Callback::from(move |idx: usize| {
+            if let Some(node) = graph.nodes.get(idx) {
+                let x = node.attributes.x/10.0;
+                let y = -node.attributes.y/10.0;
+                let s = 7.0;
+                scale.set(s);
+                *scale_ref.borrow_mut() = s;
+                offset_x.set(-x * s);
+                *offset_x_ref.borrow_mut() = -x * s;
+                offset_y.set(-y * s);
+                *offset_y_ref.borrow_mut() = -y * s;
+                selected_node.set(Some(idx));
+                *last_mouse_ref.borrow_mut() = (
+                    (width  as f64) / 2.0,
+                    (height as f64) / 2.0,
+                );
+            }
+            search_open.set(false);
+            search_query.set(String::new());
+        })
+    };
 
     {
         let canvas_edges_ref = canvas_edges_ref.clone();
@@ -320,13 +394,11 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
 
                             context.set_fill_style_str("#ffffff");
                             context.set_font(
-                                format!("bold {}px Univers", (5.0 / scale).max(5.0)).as_str(),
+                                format!("bold {}px Univers", (15.0 / scale).max(3.0)).as_str(),
                             );
                             context
                                 .fill_text(
-                                    &node.attributes.label
-                                        .strip_prefix("@")
-                                        .unwrap_or(&node.attributes.label),
+                                    &node.attributes.label,
                                     x + size_factor,
                                     y + size_factor / 2.0,
                                 )
@@ -353,7 +425,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                     for node in &graph.nodes {
                         let x = node.attributes.x / 10.0;
                         let y = -node.attributes.y / 10.0;
-                        let size_factor = (node.attributes.size as f64).log2() / 2.0;
+                        let size_factor = ((node.attributes.size as f64).log2() / 2.0).max(1.0);
 
                         if x + size_factor < view_left || x - size_factor > view_right ||
                         y + size_factor < view_top || y - size_factor > view_bottom 
@@ -362,10 +434,10 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                         }
 
                         context.set_fill_style_str("#ffffff");
-                        context.set_font(format!("bold {}px Univers", (10.0 / scale).max(3.0)).as_str());
+                        context.set_font(format!("bold {}px Univers", ((10.0 + (node.attributes.size as f64)) / scale).max(2.0)).as_str());
                         context
                             .fill_text(
-                                &node.attributes.label.strip_prefix("@").unwrap(),
+                                &node.attributes.label,
                                 x + size_factor,
                                 y + size_factor / 2.0,
                             )
@@ -388,6 +460,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
         let is_dragging = is_dragging.clone();
         let last_mouse = last_mouse.clone();
         let sel_state = selected_node.clone();
+        let did_move = Rc::new(RefCell::new(false));
 
         use_effect_with((), move |_| {
             let canvas = canvas_ref
@@ -395,11 +468,15 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 .expect("Failed to cast to HtmlCanvasElement");
             let canvas_cloned = canvas.clone();
             let canvas_cloned2 = canvas.clone();
+            let did_move_down = did_move.clone();
+            let did_move_move = did_move.clone();
+            let did_move_click = did_move.clone();
 
             let is_dragging_mouse_down = is_dragging.clone();
             let last_mouse_down = last_mouse.clone();
             let on_mouse_down = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
                 *is_dragging_mouse_down.borrow_mut() = true;
+                *did_move_down.borrow_mut() = false;
                 *last_mouse_down.borrow_mut() = (e.client_x() as f64, e.client_y() as f64);
             }) as Box<dyn FnMut(_)>);
 
@@ -416,6 +493,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             let offset_y_ref_move = offset_y_ref.clone();
             let on_mouse_move = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
                 if *is_dragging_mouse_move.borrow() {
+                    *did_move_move.borrow_mut() = true;
                     let (lx, ly) = *last_mouse_move.borrow();
                     let (cx, cy) = (e.client_x() as f64, e.client_y() as f64);
                     let dx = cx - lx;
@@ -444,7 +522,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 } else {
                     old_scale / zoom_factor
                 };
-                let min_scale = 0.6;
+                let min_scale = 0.8;
                 let max_scale = 10.0;
                 new_scale = new_scale.clamp(min_scale, max_scale);
 
@@ -462,6 +540,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
 
             let graph = graph_rc.clone();
             let on_click = Closure::wrap(Box::new(move |e: MouseEvent| {
+                if *did_move_click.borrow() {return;}
                 let rect = canvas_cloned2.get_bounding_client_rect();
                 let sx = e.client_x() as f64 - rect.left();
                 let sy = e.client_y() as f64 - rect.top();
@@ -510,6 +589,39 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
         });
     }
 
+    let zoom_in = {
+        let scale = scale.clone();
+        let scale_ref = scale_ref.clone();
+        Callback::from(move |_| {
+            let old_scale = *scale_ref.borrow();
+            let factor = 1.1;
+            let mut new_scale = old_scale * factor;
+            new_scale = new_scale.clamp(0.8, 10.0);
+            *scale_ref.borrow_mut() = new_scale;
+            scale.set(new_scale);
+        })
+    };
+
+    let zoom_out = {
+        let scale = scale.clone();
+        let scale_ref = scale_ref.clone();
+        Callback::from(move |_| {
+            let old_scale = *scale_ref.borrow();
+            let factor = 1.1;
+            let mut new_scale = old_scale / factor;
+            new_scale = new_scale.clamp(0.8, 10.0);
+            *scale_ref.borrow_mut() = new_scale;
+            scale.set(new_scale);
+        })
+    };
+
+    let logo_style = css!(r#"
+        width: 3em;
+        height: 3em;
+        color: #fff;
+        cursor: pointer;
+    "#);
+
     html! {
         <>
             <canvas
@@ -524,6 +636,40 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                     height={height.to_string()}
                     style="position: absolute; top: 0; left: 0; z-index: 1; user-select: none;"
             />
+            <div style="position: fixed; bottom: 1em; left:1em; display: flex; gap: 1em; z-index: 3;">
+                <Icon icon_id={IconId::BootstrapZoomIn} class={logo_style.clone()} onclick={zoom_in.clone()} />
+                <Icon icon_id={IconId::BootstrapZoomOut} class={logo_style.clone()} onclick={zoom_out.clone()}/>
+                <div class={logo_style.clone()} onclick={toggle_search.clone()}>
+                    {at_name_icon()}
+                </div>
+                if *search_open {
+                    <input
+                        type="text"
+                        placeholder="@username..."
+                        value={(*search_query).clone()}
+                        oninput={oninput_search}
+                        autofocus=true
+                        style="width: 12em; margin: 0.5em 0 0.5em 0;"
+                    />
+                    <ul style="max-height: 6em; overflow-y: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column-reverse; position: absolute; bottom: 3em; right: 0em; max-width: 12em; overflow-x: hidden;">
+                        { for matches.iter().map(|(i, label)| {
+                            let label_clone = label.clone();
+                            let idx = *i;
+                            let on_click = {
+                                let on_select = on_select.clone();
+                                Callback::from(move |_| on_select.emit(idx))
+                            };
+                            html! {
+                                <li onclick={on_click}
+                                    style="padding: 0.25em 0; cursor: pointer; color: white; width: 10.5em;"
+                                >
+                                    { label_clone }
+                                </li>
+                            }
+                        }) }
+                    </ul>
+                }
+            </div>
         </>
     }
 }

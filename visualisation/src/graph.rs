@@ -4,7 +4,7 @@ use serde::Deserialize;
 use stylist::css;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
-use yew::{function_component, html, use_effect_with, use_memo, use_mut_ref, use_node_ref, use_state, Callback, Html, InputEvent, MouseEvent, Properties, TargetCast, UseStateHandle, WheelEvent};
+use yew::{function_component, html, use_effect_with, use_memo, use_mut_ref, use_node_ref, use_state, Callback, Html, InputEvent, MouseEvent, Properties, TargetCast, TouchEvent, UseStateHandle, WheelEvent};
 use yew_icons::{Icon, IconId};
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -48,8 +48,14 @@ pub struct CanvasGraphProps {
 }
 
 pub fn at_name_icon() -> Html {
+    let logo_style = css!(r#"
+        width: 3em;
+        height: 3em;
+        color: #fff;
+        cursor: pointer;
+    "#);
     html! {
-        <svg xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 52 52"><path fill="#fff" fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
+        <svg class={logo_style.clone()} xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 52 52"><path fill="#fff" fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
     }
 }
 
@@ -461,6 +467,8 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
         let last_mouse = last_mouse.clone();
         let sel_state = selected_node.clone();
         let did_move = Rc::new(RefCell::new(false));
+        let initial_pinch_distance = Rc::new(RefCell::new(None::<f64>));
+        let initial_scale = Rc::new(RefCell::new(1.0));
 
         use_effect_with((), move |_| {
             let canvas = canvas_ref
@@ -513,16 +521,17 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             let offset_y_ref_wheel = offset_y_ref.clone();
             let scale_wheel = scale.clone();
             let scale_ref_wheel = scale_ref.clone();
+            let canvas_wheel = canvas.clone();
             let on_wheel = Closure::wrap(Box::new(move |e: WheelEvent| {
                 e.prevent_default();
 
-                let rect = canvas_cloned.get_bounding_client_rect();
+                let rect = canvas_wheel.get_bounding_client_rect();
                 let mouse_x = e.client_x() as f64 - rect.left();
                 let mouse_y = e.client_y() as f64 - rect.top();
 
                 let delta = -e.delta_y();
                 let zoom_factor = 1.1;
-                let old_scale = *scale_ref.borrow();
+                let old_scale = *scale_ref_wheel.borrow();
                 let mut new_scale = if delta > 0.0 {
                     old_scale * zoom_factor
                 } else {
@@ -532,8 +541,8 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 let max_scale = 10.0;
                 new_scale = new_scale.clamp(min_scale, max_scale);
 
-                let dx = mouse_x - (canvas_cloned.width() as f64 / 2.0 + *offset_x_ref_wheel.borrow());
-                let dy = mouse_y - (canvas_cloned.height() as f64 / 2.0 + *offset_y_ref_wheel.borrow());
+                let dx = mouse_x - (canvas_wheel.width() as f64 / 2.0 + *offset_x_ref_wheel.borrow());
+                let dy = mouse_y - (canvas_wheel.height() as f64 / 2.0 + *offset_y_ref_wheel.borrow());
 
                 *offset_x_ref_wheel.borrow_mut() -= dx * (new_scale / old_scale - 1.0);
                 *offset_y_ref_wheel.borrow_mut() -= dy * (new_scale / old_scale - 1.0);
@@ -584,15 +593,30 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             let is_dragging_touch_start = is_dragging.clone();
             let last_mouse_touch_start = last_mouse.clone();
             let did_move_touch_start = did_move.clone();
-            let on_touch_start = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+            let initial_pinch_distance_start = initial_pinch_distance.clone();
+            let initial_scale_start = initial_scale.clone();
+            let scale_ref_start = scale_ref.clone();
+
+            let on_touch_start = Closure::wrap(Box::new(move |e: TouchEvent| {
                 e.prevent_default();
-                if let Some(t) = e.touches().get(0) {
+
+                if e.touches().length() == 2 {
+                    let t1 = e.touches().get(0).unwrap();
+                    let t2 = e.touches().get(1).unwrap();
+                    let dx = t2.client_x() as f64 - t1.client_x() as f64;
+                    let dy = t2.client_y() as f64 - t1.client_y() as f64;
+                    *initial_pinch_distance_start.borrow_mut() = Some((dx * dx + dy * dy).sqrt());
+                    *initial_scale_start.borrow_mut() = *scale_ref_start.borrow();
+                } else {
+                    *initial_pinch_distance_start.borrow_mut() = None;
                     *is_dragging_touch_start.borrow_mut() = true;
                     *did_move_touch_start.borrow_mut() = false;
-                    *last_mouse_touch_start.borrow_mut() = (
-                        t.client_x() as f64,
-                        t.client_y() as f64,
-                    );
+                    if let Some(touch) = e.touches().get(0) {
+                        *last_mouse_touch_start.borrow_mut() = (
+                            touch.client_x() as f64,
+                            touch.client_y() as f64,
+                        );
+                    }
                 }
             }) as Box<dyn FnMut(_)>);
 
@@ -603,8 +627,54 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             let offset_x_ref_touch = offset_x_ref.clone();
             let offset_y_ref_touch = offset_y_ref.clone();
             let did_move_touch_move = did_move.clone();
-            let on_touch_move = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+            let initial_pinch_distance_move = initial_pinch_distance.clone();
+            let initial_scale_move = initial_scale.clone();
+            let canvas_for_zoom = canvas_cloned.clone();
+            let offset_x_zoom = offset_x.clone();
+            let offset_y_zoom = offset_y.clone();
+            let offset_x_ref_zoom = offset_x_ref.clone();
+            let offset_y_ref_zoom = offset_y_ref.clone();
+            let scale_zoom = scale.clone();
+            let scale_ref_zoom = scale_ref.clone();
+
+            let on_touch_move = Closure::wrap(Box::new(move |e: TouchEvent| {
                 e.prevent_default();
+
+                    if e.touches().length() == 2 {
+                        let t1 = e.touches().get(0).unwrap();
+                        let t2 = e.touches().get(1).unwrap();
+
+                        let dx = t2.client_x() as f64 - t1.client_x() as f64;
+                        let dy = t2.client_y() as f64 - t1.client_y() as f64;
+                        let current_distance = (dx * dx + dy * dy).sqrt();
+
+                        if let Some(initial_distance) = *initial_pinch_distance_move.borrow() {
+                            let scale_factor = current_distance / initial_distance;
+                            let old_scale = *initial_scale_move.borrow();
+                            let new_scale = (old_scale * scale_factor).clamp(0.8, 10.0);
+
+                            let mid_x = (t1.client_x() as f64 + t2.client_x() as f64) / 2.0;
+                            let mid_y = (t1.client_y() as f64 + t2.client_y() as f64) / 2.0;
+
+                            let rect = canvas_for_zoom.get_bounding_client_rect();
+                            let canvas_mid_x = mid_x - rect.left();
+                            let canvas_mid_y = mid_y - rect.top();
+
+                            let dx_canvas = canvas_mid_x - (canvas_for_zoom.width() as f64 / 2.0 + *offset_x_ref_zoom.borrow());
+                            let dy_canvas = canvas_mid_y - (canvas_for_zoom.height() as f64 / 2.0 + *offset_y_ref_zoom.borrow());
+
+                            let scale_change = new_scale / old_scale;
+                            *offset_x_ref_zoom.borrow_mut() -= dx_canvas * (scale_change - 1.0);
+                            *offset_y_ref_zoom.borrow_mut() -= dy_canvas * (scale_change - 1.0);
+
+                            *scale_ref_zoom.borrow_mut() = new_scale;
+                            scale_zoom.set(new_scale);
+                            offset_x_zoom.set(*offset_x_ref_zoom.borrow());
+                            offset_y_zoom.set(*offset_y_ref_zoom.borrow());
+                        }
+
+                        return;
+                    }
                 if *is_dragging_touch_move.borrow() {
                     if let Some(t) = e.touches().get(0) {
                         *did_move_touch_move.borrow_mut() = true;
@@ -627,9 +697,11 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             let sel_state_touch = sel_state.clone();
             let canvas_for_tap = canvas_cloned2.clone();
             let graph_for_tap = graph_rc.clone();
-            let on_touch_end = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+            let initial_pinch_distance_end = initial_pinch_distance.clone();
+            let on_touch_end = Closure::wrap(Box::new(move |e: TouchEvent| {
                 e.prevent_default();
                 *is_dragging_touch_end.borrow_mut() = false;
+                *initial_pinch_distance_end.borrow_mut() = None;
                 if !*did_move_touch_end.borrow() {
                     if let Some(t) = e.changed_touches().get(0) {
                         let rect = canvas_for_tap.get_bounding_client_rect();

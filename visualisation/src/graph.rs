@@ -511,6 +511,8 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
         let did_move = Rc::new(RefCell::new(false));
         let initial_pinch_distance = Rc::new(RefCell::new(None::<f64>));
         let initial_scale = Rc::new(RefCell::new(1.0));
+        let initial_offset_x = Rc::new(RefCell::new(0.0));
+        let initial_offset_y = Rc::new(RefCell::new(0.0));
 
         use_effect_with((), move |_| {
             let canvas = canvas_ref
@@ -638,6 +640,10 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             let initial_pinch_distance_start = initial_pinch_distance.clone();
             let initial_scale_start = initial_scale.clone();
             let scale_ref_start = scale_ref.clone();
+            let initial_offset_x_start = initial_offset_x.clone();
+            let initial_offset_y_start = initial_offset_y.clone();
+            let offset_x_ref_start = offset_x_ref.clone();
+            let offset_y_ref_start = offset_y_ref.clone();
 
             let on_touch_start = Closure::wrap(Box::new(move |e: TouchEvent| {
                 e.prevent_default();
@@ -649,6 +655,8 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                     let dy = t2.client_y() as f64 - t1.client_y() as f64;
                     *initial_pinch_distance_start.borrow_mut() = Some((dx * dx + dy * dy).sqrt());
                     *initial_scale_start.borrow_mut() = *scale_ref_start.borrow();
+                    *initial_offset_x_start.borrow_mut() = *offset_x_ref_start.borrow();
+                    *initial_offset_y_start.borrow_mut() = *offset_y_ref_start.borrow(); 
                 } else {
                     *initial_pinch_distance_start.borrow_mut() = None;
                     *is_dragging_touch_start.borrow_mut() = true;
@@ -703,17 +711,20 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                             let canvas_mid_x_css = mid_x - rect.left();
                             let canvas_mid_y_css = mid_y - rect.top();
 
-                            let dx_canvas = canvas_mid_x_css - (rect.width() as f64 / 2.0 + *offset_x_ref_zoom.borrow());
-                            let dy_canvas = canvas_mid_y_css - (rect.height() as f64 / 2.0 + *offset_y_ref_zoom.borrow());
+                            let dx_canvas = canvas_mid_x_css - (rect.width() as f64 / 2.0 + *initial_offset_x.borrow());
+                            let dy_canvas = canvas_mid_y_css - (rect.height() as f64 / 2.0 + *initial_offset_y.borrow());
 
                             let scale_change = new_scale / old_scale;
-                            *offset_x_ref_zoom.borrow_mut() -= dx_canvas * (scale_change - 1.0);
-                            *offset_y_ref_zoom.borrow_mut() -= dy_canvas * (scale_change - 1.0);
+                            let new_offset_x = *initial_offset_x.borrow() - dx_canvas * (scale_change - 1.0);
+                            let new_offset_y = *initial_offset_y.borrow() - dy_canvas * (scale_change - 1.0);
+
+                            *offset_x_ref_zoom.borrow_mut() = new_offset_x;
+                            *offset_y_ref_zoom.borrow_mut() = new_offset_y;
 
                             *scale_ref_zoom.borrow_mut() = new_scale;
                             scale_zoom.set(new_scale);
-                            offset_x_zoom.set(*offset_x_ref_zoom.borrow());
-                            offset_y_zoom.set(*offset_y_ref_zoom.borrow());
+                            offset_x_zoom.set(new_offset_x);
+                            offset_y_zoom.set(new_offset_y);
                         }
 
                         return;

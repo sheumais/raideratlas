@@ -1,10 +1,10 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use serde::Deserialize;
 use stylist::css;
 use wasm_bindgen::{prelude::Closure, JsCast};
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
-use yew::{function_component, html, use_effect_with, use_memo, use_mut_ref, use_node_ref, use_state, Callback, Html, InputEvent, MouseEvent, Properties, TargetCast, TouchEvent, UseStateHandle, WheelEvent};
+use web_sys::{window, CanvasRenderingContext2d, HtmlCanvasElement, HtmlInputElement};
+use yew::{function_component, html, use_effect_with, use_memo, use_mut_ref, use_node_ref, use_state, Callback, Html, InputEvent, KeyboardEvent, MouseEvent, Properties, TargetCast, TouchEvent, UseStateHandle, WheelEvent};
 use yew_icons::{Icon, IconId};
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -55,7 +55,7 @@ pub fn at_name_icon() -> Html {
         cursor: pointer;
     "#);
     html! {
-        <svg class={logo_style.clone()} xmlns="http://www.w3.org/2000/svg" fill="#fff" viewBox="0 0 52 52"><path fill="#fff" fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
+        <svg class={logo_style.clone()} xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 52 52"><path fill-rule="evenodd" d="M34.632 5.055a20.968 20.968 0 1 0-16.034 36.75 25 25 0 0 0 4.128.13c3.431-.243 6.647-1.166 9.439-2.68a21 21 0 0 0 1.59-.956l12.368 12.369a3.226 3.226 0 0 0 4.565-4.562L38.464 33.882q.823-1.093 1.483-2.312h-3.324c-3.324 4.879-9.031 7.458-15.735 7.458-9.862 0-17.785-7.963-17.785-17.944 0-9.925 7.923-17.944 17.785-17.944 12.818 0 16.09 7.472 16.82 11.894.144.873.19 1.627.19 2.181 0 8.86-5.874 13.29-9.253 13.29-.942 0-1.663-.505-1.663-1.458 0-.785.444-2.131.72-2.916L33.41 9.028h-3.823l-.776 2.636c-1.164-2.468-3.712-3.757-6.316-3.757-8.256 0-13.852 9.588-13.852 17.158 0 4.598 2.992 8.468 7.757 8.468 2.382 0 4.931-1.066 6.649-2.86.665 2.075 2.88 2.972 4.82 2.972 2.168 0 5.647-1.023 8.48-3.8C38.946 27.3 41 23.277 41 17.215c0-.644-.11-2.339-.711-4.427a21 21 0 0 0-5.657-7.733M12.91 24.785c0-5.159 3.767-13.514 9.64-13.514 2.327 0 3.934 1.907 3.934 4.094 0 2.41-2.77 14.803-9.253 14.803-2.826 0-4.321-2.691-4.321-5.383" clip-rule="evenodd"/></svg>
     }
 }
 
@@ -195,16 +195,16 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
 
     let graph_rc = use_memo((), |_| {
         let raw: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph"));
-        // web_sys::console::log_1(&format!("CARGO_MANIFEST_DIR + static/graph: {}", concat!(env!("CARGO_MANIFEST_DIR"), "/static/graph")).into());
-        // web_sys::console::log_1(&format!("Raw graph content: {}", raw).into());
         serde_json::from_str::<Graph>(raw)
             .expect("graph.json should parse to a Graph")
     });
 
     
     let graph = graph_rc.clone();
+
+    let matches_ref = use_mut_ref(|| Vec::<(usize, String)>::new());
     let matches = {
-        let query = (*search_query).to_lowercase();
+        let query = (*search_query).to_lowercase().trim_matches('@').to_owned();
         if query.len() >= 3 {
             graph.nodes.iter().enumerate()
                 .filter(|(_, node)| node.attributes.label.to_lowercase().contains(&query))
@@ -214,6 +214,8 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             vec![]
         }
     };
+
+    *matches_ref.borrow_mut() = matches.clone();
 
     let toggle_search = {
         let search_open = search_open.clone();
@@ -263,6 +265,46 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
             search_query.set(String::new());
         })
     };
+
+    let onkeydown_search = {
+        let matches_ref = matches_ref.clone();
+        let on_select = on_select.clone();
+        Callback::from(move |e: KeyboardEvent| {
+            if e.key() == "Enter" {
+                let matches = matches_ref.borrow();
+                if let Some((idx, _)) = matches.first() {
+                    on_select.emit(*idx);
+                }
+            }
+        })
+    };
+
+    let input_search_ref = use_node_ref();
+
+    {
+        let search_open = search_open.clone();
+        let input_search_ref = input_search_ref.clone();
+        use_effect_with((), move |_| {
+            let window = window().unwrap();
+            let cb = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+                if event.ctrl_key() && event.key().to_lowercase() == "f" {
+                    event.prevent_default();
+                    search_open.set(true);
+                    if let Some(input) = input_search_ref.cast::<HtmlInputElement>() {
+                        input.focus().ok();
+                    }
+                }
+            }) as Box<dyn FnMut(_)>);
+
+            window
+                .add_event_listener_with_callback("keydown", cb.as_ref().unchecked_ref())
+                .unwrap();
+
+            cb.forget();
+
+            || {}
+        });
+    }
 
     {
         let canvas_edges_ref = canvas_edges_ref.clone();
@@ -327,17 +369,16 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 if let Some(sel_index) = selected {
                     if let Some(sel_node) = graph.nodes.get(sel_index) {
                         let selected_key = &sel_node.key;
-                        let mut connected: HashSet<String> = HashSet::new();
-                        connected.insert(selected_key.clone());
+                        let mut connected: HashMap<String, f64> = HashMap::new();
 
                         for edge in &graph.edges {
                             if &edge.source == selected_key {
-                                connected.insert(edge.target.clone());
+                                connected.insert(edge.target.clone(), edge.attributes.weight);
                             } else if &edge.target == selected_key {
-                                connected.insert(edge.source.clone());
+                                connected.insert(edge.source.clone(), edge.attributes.weight);
                             }
                         }
-                        connected.insert(selected_key.clone());
+                        connected.insert(selected_key.to_string(), 10.0);
 
                         for edge in &graph.edges {
                             if &edge.source == selected_key || &edge.target == selected_key {
@@ -390,7 +431,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                         }
 
                         for node in &graph.nodes {
-                            if !connected.contains(&node.key) {
+                            if !connected.contains_key(&node.key) {
                                 continue;
                             }
 
@@ -399,8 +440,9 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                             let size_factor = (node.attributes.size as f64).log2() / 2.0;
 
                             context.set_fill_style_str("#ffffff");
+                            let weight = *connected.get(&node.key).unwrap_or(&10.0);
                             context.set_font(
-                                format!("bold {}px Univers", (15.0 / scale).max(3.0)).as_str(),
+                                format!("bold {}px Univers", ((5.0 + weight) / scale).max(2.0)).as_str(),
                             );
                             context
                                 .fill_text(
@@ -440,7 +482,7 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                         }
 
                         context.set_fill_style_str("#ffffff");
-                        context.set_font(format!("bold {}px Univers", ((10.0 + (node.attributes.size as f64)) / scale).max(2.0)).as_str());
+                        context.set_font(format!("bold {}px Univers", ((7.0 + (node.attributes.size as f64)) / scale).max(2.0)).as_str());
                         context
                             .fill_text(
                                 &node.attributes.label,
@@ -657,11 +699,12 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                             let mid_y = (t1.client_y() as f64 + t2.client_y() as f64) / 2.0;
 
                             let rect = canvas_for_zoom.get_bounding_client_rect();
-                            let canvas_mid_x = mid_x - rect.left();
-                            let canvas_mid_y = mid_y - rect.top();
 
-                            let dx_canvas = canvas_mid_x - (canvas_for_zoom.width() as f64 / 2.0 + *offset_x_ref_zoom.borrow());
-                            let dy_canvas = canvas_mid_y - (canvas_for_zoom.height() as f64 / 2.0 + *offset_y_ref_zoom.borrow());
+                            let canvas_mid_x_css = mid_x - rect.left();
+                            let canvas_mid_y_css = mid_y - rect.top();
+
+                            let dx_canvas = canvas_mid_x_css - (rect.width() as f64 / 2.0 + *offset_x_ref_zoom.borrow());
+                            let dy_canvas = canvas_mid_y_css - (rect.height() as f64 / 2.0 + *offset_y_ref_zoom.borrow());
 
                             let scale_change = new_scale / old_scale;
                             *offset_x_ref_zoom.borrow_mut() -= dx_canvas * (scale_change - 1.0);
@@ -844,15 +887,20 @@ pub fn canvas_graph(props: &CanvasGraphProps) -> Html {
                 <div class={logo_style.clone()} onclick={toggle_search.clone()}>
                     {at_name_icon()}
                 </div>
+                <input
+                    type="text"
+                    placeholder="@username..."
+                    value={(*search_query).clone()}
+                    oninput={oninput_search}
+                    onkeydown={onkeydown_search}
+                    ref={input_search_ref}
+                    autofocus=true
+                    style={format!(
+                        "width: 12em; margin: 0.5em 0 0.5em 0; opacity: {};",
+                        if *search_open { "1" } else { "0" }
+                    )}
+                />
                 if *search_open {
-                    <input
-                        type="text"
-                        placeholder="@username..."
-                        value={(*search_query).clone()}
-                        oninput={oninput_search}
-                        autofocus=true
-                        style="width: 12em; margin: 0.5em 0 0.5em 0;"
-                    />
                     <ul style="max-height: 6em; overflow-y: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column-reverse; position: absolute; bottom: 3em; right: 0em; max-width: 12em; overflow-x: hidden;">
                         { for matches.iter().map(|(i, label)| {
                             let label_clone = label.clone();
